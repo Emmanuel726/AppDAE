@@ -54,11 +54,31 @@ set_target_properties(appAppDAE PROPERTIES
 )
 
 if(ANDROID)
-    # Plantilla Android propia: ícono de la Facultad (emblema azul sobre fondo blanco) y nombre "DAE UC"
+    # Plantilla Android propia: ícono de la Facultad y nombre "DAE ING"
     set_property(TARGET appAppDAE PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
-    if(EXISTS "/home/emmanuel/Android/android_openssl/android_openssl.cmake")
-        include("/home/emmanuel/Android/android_openssl/android_openssl.cmake")
+
+    # Búsqueda flexible de OpenSSL para Android:
+    # 1) Variable CMake -DANDROID_OPENSSL_DIR=...
+    # 2) Variable de entorno ANDROID_OPENSSL_DIR
+    # 3) Rutas estándar en el directorio del usuario
+    set(_openssl_cmake "")
+    foreach(_dir
+        "${ANDROID_OPENSSL_DIR}"
+        "$ENV{ANDROID_OPENSSL_DIR}"
+        "$ENV{HOME}/Android/android_openssl"
+        "$ENV{USERPROFILE}/Android/android_openssl"
+        "/home/emmanuel/Android/android_openssl")
+        if(_dir AND EXISTS "${_dir}/android_openssl.cmake")
+            set(_openssl_cmake "${_dir}/android_openssl.cmake")
+            break()
+        endif()
+    endforeach()
+
+    if(_openssl_cmake)
+        include("${_openssl_cmake}")
         add_android_openssl_libraries(appAppDAE)
+    else()
+        message(WARNING "No se encontró android_openssl.cmake. Define ANDROID_OPENSSL_DIR para habilitar HTTPS en Android.")
     endif()
 endif()
 
