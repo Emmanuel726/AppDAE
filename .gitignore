@@ -1,0 +1,15 @@
+# Directorios de compilación y del IDE
+build/
+.qtcreator/
+*.user
+*.user.*
+
+# Paquetes APK generados y logs
+*.apk
+*.aab
+*.log
+debug_dae/
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db
