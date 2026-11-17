@@ -1,12 +1,12 @@
-# AppDAE — Visor Estudiantil Móvil (FIUC)
+# AppDAE — Visor Estudiantil Móvil
 
-Cliente móvil independiente y de código abierto (**GNU GPL v3**) desarrollado en **Qt / QML + C++** para facilitar el acceso desde Android a los servicios académicos de la **Dirección de Asuntos Estudiantiles (DAE)** de la Facultad de Ingeniería de la Universidad de Carabobo.
+Aplicación móvil independiente y de código abierto (**GNU GPL v3**) desarrollada para facilitar el acceso desde Android a los servicios académicos de la **Dirección de Asuntos Estudiantiles (DAE)** de la Facultad de Ingeniería de la Universidad de Carabobo.
 
 ---
 
-## Descargar APK (Sin Compilar)
+## Descargar APK
 
-Si eres estudiante y solo deseas instalar la aplicación en tu teléfono Android (`arm64-v8a`, Android 9.0 o superior):
+Si eres estudiante y quieres instalar la aplicación en tu teléfono Android (Android 9.0 o superior):
 
 - **[Descargar AppDAE v1.1 (APK)](https://github.com/Emmanuel726/AppDAE/releases/latest)**
 
@@ -24,28 +24,28 @@ Si eres estudiante y solo deseas instalar la aplicación en tu teléfono Android
 
 ## Características Principales
 
-- **Inicio de Sesión Directo y Biometría:** Autenticación cifrada directa contra `dae.ing.uc.edu.ve`, caché local por usuario y acceso rápido con huella dactilar nativa de Android.
-- **Expediente Académico:** Consulta de promedio ponderado, aritmético, UC aprobadas y detalle por semestre (compatible con el formato clásico y el nuevo formato de historial).
-- **Notas Transcritas:** Visualización de actas transcritas y asignaturas pendientes por transcribir.
-- **Horario Asignado:** Malla horaria semanal, vista por días y detalle de cada materia (sección, aula, bloques y profesor).
-- **Inscripción y Reporte:** Selección de asignaturas y secciones disponibles según RAP, validación de choques de bloques y consulta directa del reporte de solicitud de inscripción.
-- **Servicios Académicos Integrados:**
-  - **Visualizar RAP** (incluyendo materias habilitadas por Artículo 17).
-  - **Oferta de Horarios** (Pensum 1997 y 2025) con buscador y profesores.
-  - **Salones Disponibles** filtrados por día, hora y edificio.
-  - **Mapa Interactivo de la Facultad**.
-  - **Pensum de Estudios y Preguntas Frecuentes**.
+- **Acceso Rápido y Seguro:** Inicio de sesión directo en el portal del DAE con soporte para acceso biométrico (huella dactilar) y consulta sin conexión de los datos ya cargados.
+- **Expediente Académico:** Consulta de promedio ponderado, aritmético, unidades de crédito aprobadas e historial completo por semestre.
+- **Notas Transcritas:** Visualización de calificaciones asentadas y materias pendientes por transcribir.
+- **Horario Asignado:** Vista semanal y diaria de tus clases con aula, sección y profesor asignado.
+- **Inscripción y Reporte:** Selección de asignaturas y secciones disponibles, verificación de choques horarios y consulta directa del comprobante de solicitud de inscripción.
+- **Servicios Académicos:**
+  - Consulta del **RAP** (asignaturas disponibles y requisitos).
+  - **Oferta de Horarios** con buscador por materia y sección.
+  - **Salones Disponibles** por día, hora y edificio.
+  - **Mapa Interactivo** de la Facultad de Ingeniería.
+  - **Pensum de Estudios** y **Preguntas Frecuentes**.
   - **Reglamento de Evaluación**.
-  - **Calendario Académico** y descarga de constancias/horarios en PDF.
+  - **Calendario Académico** y descarga de constancias y horario en PDF.
   - **Carnet Universitario Virtual** y solicitud de **Cambio de Escuela**.
-- **Tareas y Exámenes con Notificaciones:** Recordatorios locales programados mediante `AlarmManager` de Android (con selector de antelación o fecha/hora exacta en formato 12 h AM/PM).
-- **Personalización:** Modo Claro, Oscuro, OLED o Sistema, paletas de colores con fondo animado Aurora y foto de perfil recortable.
+- **Tareas y Exámenes:** Agenda personal por materia con recordatorios y notificaciones programadas en el teléfono.
+- **Personalización:** Modo claro, oscuro, OLED o automático del sistema, junto con distintas paletas de colores para la interfaz.
 
 ---
 
 ## Compilar desde el Código Fuente
 
-Consulta la guía completa de dependencias y comandos en **[REQUISITOS.md](REQUISITOS.md)**.
+Si deseas compilar el proyecto por tu cuenta, consulta la guía de dependencias y pasos en **[REQUISITOS.md](REQUISITOS.md)**.
 
 ---
 
