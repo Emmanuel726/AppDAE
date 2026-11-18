@@ -297,6 +297,8 @@ public:
     Q_INVOKABLE void descargarCalendarioPdf(const QString &urlPdf, const QString &nombreArchivo);
     Q_INVOKABLE void descargarConstanciaEstudiantil(int tipoConstancia);
     Q_INVOKABLE void descargarHorarioPdf();
+    Q_INVOKABLE void descargarCarnetPdf(const QString &rutaFotoPerfil = QString());
+    Q_INVOKABLE QVariantList matrizQrCarnet() const;
     Q_INVOKABLE void enviarSolicitudCambioEscuela(const QString &codigoEscuelaDestino);
     Q_INVOKABLE QStringList obtenerEstados() const;
     Q_INVOKABLE QStringList obtenerMunicipiosPorEstado(const QString &nombreEstado) const;

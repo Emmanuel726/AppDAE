@@ -15,64 +15,39 @@ Item {
     property string tituloQrModal: "QR de Identificación Estudiantil"
     property int semillaQrModal: 1
 
-    // Componente reutilizable que dibuja un Código QR realista y nítido en Canvas
+    // Componente reutilizable que dibuja el Código QR real de https://carnet.uc.edu.ve
     component CodigoQrCanvas: Canvas {
         id: qrCanvas
         property int semilla: 1
         property color colorModulo: "#0f172a"
+        readonly property var matrizQr: daeClient.matrizQrCarnet()
         width: 84
         height: 84
         onSemillaChanged: requestPaint()
         onColorModuloChanged: requestPaint()
+        onMatrizQrChanged: requestPaint()
 
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
 
-            var n = 21; // Matriz estándar QR Versión 1 (21x21 módulos)
-            var cel = width / n;
+            var matriz = matrizQr;
+            if (!matriz || matriz.length === 0) return;
+
+            var n = matriz.length;
+            var cel = Math.min(width, height) / (n + 2);
+            var ox = (width - n * cel) / 2;
+            var oy = (height - n * cel) / 2;
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+
             ctx.fillStyle = colorModulo;
-
-            function esPatronPosicion(r, c) {
-                if (r < 7 && c < 7) return true;
-                if (r < 7 && c >= n - 7) return true;
-                if (r >= n - 7 && c < 7) return true;
-                return false;
-            }
-
-            function dibujarBuscador(ox, oy) {
-                // Cuadro exterior 7x7
-                ctx.fillRect(ox * cel, oy * cel, 7 * cel, cel);
-                ctx.fillRect(ox * cel, (oy + 6) * cel, 7 * cel, cel);
-                ctx.fillRect(ox * cel, (oy + 1) * cel, cel, 5 * cel);
-                ctx.fillRect((ox + 6) * cel, (oy + 1) * cel, cel, 5 * cel);
-                // Núcleo interior 3x3
-                ctx.fillRect((ox + 2) * cel, (oy + 2) * cel, 3 * cel, 3 * cel);
-            }
-
-            dibujarBuscador(0, 0);
-            dibujarBuscador(n - 7, 0);
-            dibujarBuscador(0, n - 7);
-
-            // Líneas de sincronización (Timing patterns)
-            for (var t = 8; t < n - 8; t += 2) {
-                ctx.fillRect(t * cel, 6 * cel, cel, cel);
-                ctx.fillRect(6 * cel, t * cel, cel, cel);
-            }
-
-            // Módulos de datos determinísticos basados en la cédula del estudiante autenticado y la semilla
             for (var r = 0; r < n; r++) {
+                var fila = matriz[r];
                 for (var c = 0; c < n; c++) {
-                    if (esPatronPosicion(r, c)) continue;
-                    // Separadores blancos alrededor de los buscadores
-                    if ((r === 7 && c < 8) || (c === 7 && r < 8)) continue;
-                    if ((r === 7 && c >= n - 8) || (c === n - 8 && r < 8)) continue;
-                    if ((r === n - 8 && c < 8) || (c === 7 && r >= n - 8)) continue;
-                    if (r === 6 || c === 6) continue;
-
-                    var hash = ((r * 31 + c * 17 + semilla * 13) ^ (r * c + 7)) % 11;
-                    if (hash < 5) {
-                        ctx.fillRect(c * cel, r * cel, Math.ceil(cel), Math.ceil(cel));
+                    if (fila[c] === 1) {
+                        ctx.fillRect(ox + c * cel, oy + r * cel, Math.ceil(cel), Math.ceil(cel));
                     }
                 }
             }
@@ -370,7 +345,7 @@ Item {
                             }
 
                             Text {
-                                text: "VENCE: 31-07-2026"
+                                text: "VENCE: 31-12-" + (new Date().getFullYear())
                                 color: temaApp.esClaro ? "#b45309" : "#fbbf24"
                                 font.pixelSize: 10
                                 font.bold: true
@@ -762,7 +737,7 @@ Item {
                                     }
                                     Text {
                                         width: colVencimiento.width
-                                        text: "31/07/2026"
+                                        text: "31/12/" + (new Date().getFullYear())
                                         color: temaApp.textoPrincipal
                                         font.pixelSize: 11
                                         font.bold: true
@@ -824,6 +799,7 @@ Item {
                             onPressed: btnDescargarCarnetPdf.scale = 0.96
                             onReleased: btnDescargarCarnetPdf.scale = 1.0
                             onClicked: {
+                                daeClient.descargarCarnetPdf(rootCarnet.urlFotoEstudiante)
                                 rootCarnet.descargaPdfExitosa = true
                                 daeClient.registrarSolicitudReciente("CAR", "Carnet Universitario",
                                                                        "Carnet vigente • V-" + daeClient.cedulaEstudiante, "Descargado")

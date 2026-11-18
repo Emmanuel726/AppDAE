@@ -24,6 +24,7 @@
 #include <QDesktopServices>
 #include <QPdfWriter>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPageSize>
 #include <QPageLayout>
 #include <QImage>
@@ -3244,6 +3245,511 @@ void DaeClient::descargarHorarioPdf()
     p.setPen(QColor("#374151"));
     p.drawText(QRect(0, pageH - 70, pageW, 50), Qt::AlignHCenter | Qt::AlignVCenter,
                "Dirección de Asuntos Estudiantiles - - Facultad de Ingeniería - - Universidad de Carabobo");
+
+    p.end();
+
+    m_descargandoPdf = false;
+    emit descargandoPdfChanged();
+
+    QDesktopServices::openUrl(QUrl::fromLocalFile(rutaCompleta));
+    emit pdfDescargado(rutaCompleta, nombreArchivo);
+}
+
+namespace {
+// Genera la matriz estándar QR Versión 2-M (25x25 módulos) para "https://carnet.uc.edu.ve"
+QVector<QVector<int>> generarMatrizQrUrlCarnet()
+{
+    static const QByteArray texto = QByteArrayLiteral("https://carnet.uc.edu.ve");
+    constexpr int N = 25;
+    constexpr int kDataCodewords = 28;
+    constexpr int kEccCodewords = 16;
+
+    // 1. Flujo de bits en modo Byte (0100), longitud (8 bits), datos y terminador
+    QVector<int> bits;
+    bits.reserve(kDataCodewords * 8);
+    auto pushBits = [&bits](int valor, int nBits) {
+        for (int i = nBits - 1; i >= 0; --i) {
+            bits.append((valor >> i) & 1);
+        }
+    };
+
+    pushBits(0b0100, 4);
+    pushBits(texto.size(), 8);
+    for (unsigned char c : texto) {
+        pushBits(c, 8);
+    }
+    const int terminador = qMin(4, kDataCodewords * 8 - bits.size());
+    for (int i = 0; i < terminador; ++i) {
+        bits.append(0);
+    }
+    while (bits.size() % 8 != 0) {
+        bits.append(0);
+    }
+
+    QVector<int> codewords;
+    codewords.reserve(kDataCodewords + kEccCodewords);
+    for (int i = 0; i < bits.size(); i += 8) {
+        int cw = 0;
+        for (int j = 0; j < 8; ++j) {
+            cw = (cw << 1) | bits[i + j];
+        }
+        codewords.append(cw);
+    }
+    const int padBytes[2] = {0xEC, 0x11};
+    int padIdx = 0;
+    while (codewords.size() < kDataCodewords) {
+        codewords.append(padBytes[padIdx % 2]);
+        ++padIdx;
+    }
+
+    // 2. Aritmética GF(256) con polinomio primitivo 0x11D para Reed-Solomon
+    int gfExp[512] = {};
+    int gfLog[256] = {};
+    int x = 1;
+    for (int i = 0; i < 255; ++i) {
+        gfExp[i] = x;
+        gfLog[x] = i;
+        x <<= 1;
+        if (x & 0x100) {
+            x ^= 0x11D;
+        }
+    }
+    for (int i = 255; i < 512; ++i) {
+        gfExp[i] = gfExp[i - 255];
+    }
+    auto gfMul = [&gfExp, &gfLog](int a, int b) -> int {
+        if (a == 0 || b == 0) return 0;
+        return gfExp[gfLog[a] + gfLog[b]];
+    };
+
+    QVector<int> gen = {1};
+    for (int i = 0; i < kEccCodewords; ++i) {
+        QVector<int> siguiente(gen.size() + 1, 0);
+        for (int j = 0; j < gen.size(); ++j) {
+            siguiente[j] ^= gen[j];
+            siguiente[j + 1] ^= gfMul(gen[j], gfExp[i]);
+        }
+        gen = siguiente;
+    }
+
+    QVector<int> rem = codewords;
+    rem.resize(kDataCodewords + kEccCodewords, 0);
+    for (int i = 0; i < kDataCodewords; ++i) {
+        int coef = rem[i];
+        if (coef != 0) {
+            for (int j = 0; j < gen.size(); ++j) {
+                rem[i + j] ^= gfMul(gen[j], coef);
+            }
+        }
+    }
+    for (int i = kDataCodewords; i < kDataCodewords + kEccCodewords; ++i) {
+        codewords.append(rem[i]);
+    }
+
+    // 3. Construcción de la matriz 25x25
+    QVector<QVector<int>> grid(N, QVector<int>(N, 0));
+    QVector<QVector<bool>> fixed(N, QVector<bool>(N, false));
+    auto setMod = [&grid, &fixed](int r, int c, int val) {
+        grid[r][c] = val ? 1 : 0;
+        fixed[r][c] = true;
+    };
+
+    auto dibujarFinder = [&](int ox, int oy) {
+        for (int r = -1; r <= 7; ++r) {
+            for (int c = -1; c <= 7; ++c) {
+                int rr = oy + r;
+                int cc = ox + c;
+                if (rr < 0 || rr >= N || cc < 0 || cc >= N) continue;
+                if (r == -1 || r == 7 || c == -1 || c == 7) {
+                    setMod(rr, cc, 0);
+                } else if (r == 0 || r == 6 || c == 0 || c == 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
+                    setMod(rr, cc, 1);
+                } else {
+                    setMod(rr, cc, 0);
+                }
+            }
+        }
+    };
+
+    dibujarFinder(0, 0);
+    dibujarFinder(N - 7, 0);
+    dibujarFinder(0, N - 7);
+
+    // Patrón de alineamiento en (18, 18) para Versión 2
+    for (int r = -2; r <= 2; ++r) {
+        for (int c = -2; c <= 2; ++c) {
+            int d = qMax(qAbs(r), qAbs(c));
+            setMod(18 + r, 18 + c, (d == 0 || d == 2) ? 1 : 0);
+        }
+    }
+
+    // Patrones de sincronización y módulo oscuro obligatorio
+    for (int i = 8; i < N - 8; ++i) {
+        setMod(6, i, (i % 2 == 0) ? 1 : 0);
+        setMod(i, 6, (i % 2 == 0) ? 1 : 0);
+    }
+    setMod(17, 8, 1);
+
+    // Reservar zonas de información de formato
+    for (int i = 0; i < 9; ++i) {
+        if (i != 6) {
+            fixed[8][i] = true;
+            fixed[i][8] = true;
+        }
+    }
+    for (int i = 0; i < 8; ++i) {
+        fixed[8][N - 1 - i] = true;
+        fixed[N - 1 - i][8] = true;
+    }
+
+    // 4. Colocar bits de datos + 7 bits remanentes aplicando máscara 0 ((r + c) % 2 == 0)
+    QVector<int> stream;
+    stream.reserve(codewords.size() * 8 + 7);
+    for (int cw : codewords) {
+        for (int b = 7; b >= 0; --b) {
+            stream.append((cw >> b) & 1);
+        }
+    }
+    for (int i = 0; i < 7; ++i) {
+        stream.append(0);
+    }
+
+    int bi = 0;
+    bool subiendo = true;
+    for (int c = N - 1; c > 0; c -= 2) {
+        if (c == 6) --c;
+        for (int step = 0; step < N; ++step) {
+            int r = subiendo ? (N - 1 - step) : step;
+            for (int dc = 0; dc >= -1; --dc) {
+                int cc = c + dc;
+                if (!fixed[r][cc]) {
+                    int bit = (bi < stream.size()) ? stream[bi] : 0;
+                    ++bi;
+                    if ((r + cc) % 2 == 0) {
+                        bit ^= 1;
+                    }
+                    grid[r][cc] = bit;
+                }
+            }
+        }
+        subiendo = !subiendo;
+    }
+
+    // 5. Información de formato: Nivel M (00) + Máscara 0 (000) -> 0x5412
+    constexpr int kFmt = 0x5412;
+    const int tlR[15] = {8, 8, 8, 8, 8, 8, 8, 8, 7, 5, 4, 3, 2, 1, 0};
+    const int tlC[15] = {0, 1, 2, 3, 4, 5, 7, 8, 8, 8, 8, 8, 8, 8, 8};
+    const int brR[15] = {24, 23, 22, 21, 20, 19, 18, 8, 8, 8, 8, 8, 8, 8, 8};
+    const int brC[15] = {8, 8, 8, 8, 8, 8, 8, 17, 18, 19, 20, 21, 22, 23, 24};
+    for (int k = 0; k < 15; ++k) {
+        int bit = (kFmt >> (14 - k)) & 1;
+        grid[tlR[k]][tlC[k]] = bit;
+        grid[brR[k]][brC[k]] = bit;
+    }
+
+    return grid;
+}
+
+void dibujarQrEnPainter(QPainter &p, const QRect &rect, const QVector<QVector<int>> &grid)
+{
+    const int n = grid.size();
+    if (n <= 0) return;
+
+    p.save();
+    p.fillRect(rect, Qt::white);
+    // Zona tranquila de 1 módulo alrededor
+    const double modSize = static_cast<double>(qMin(rect.width(), rect.height())) / (n + 2);
+    const double ox = rect.x() + (rect.width() - modSize * n) / 2.0;
+    const double oy = rect.y() + (rect.height() - modSize * n) / 2.0;
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor("#000000"));
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            if (grid[r][c] == 1) {
+                QRectF cell(ox + c * modSize, oy + r * modSize, modSize + 0.35, modSize + 0.35);
+                p.drawRect(cell);
+            }
+        }
+    }
+    p.restore();
+}
+} // namespace
+
+QVariantList DaeClient::matrizQrCarnet() const
+{
+    static const QVector<QVector<int>> grid = generarMatrizQrUrlCarnet();
+    QVariantList out;
+    out.reserve(grid.size());
+    for (const QVector<int> &fila : grid) {
+        QVariantList row;
+        row.reserve(fila.size());
+        for (int v : fila) {
+            row.append(v);
+        }
+        out.append(QVariant(row));
+    }
+    return out;
+}
+
+void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
+{
+    if (m_descargandoPdf) return;
+    m_descargandoPdf = true;
+    emit descargandoPdfChanged();
+
+    QString dirDescargas = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (dirDescargas.isEmpty()) {
+        dirDescargas = QDir::homePath();
+    }
+
+    const QString cedulaLimpia = m_cedulaEstudiante.trimmed().isEmpty() ? QStringLiteral("00000000") : m_cedulaEstudiante.trimmed();
+    const QString nombreArchivo = QStringLiteral("Carnet_Electronico_UC_%1.pdf").arg(cedulaLimpia);
+    const QString rutaCompleta = QDir(dirDescargas).filePath(nombreArchivo);
+
+    QPdfWriter pdf(rutaCompleta);
+    pdf.setPageSize(QPageSize(QPageSize::Letter));
+    pdf.setPageOrientation(QPageLayout::Portrait);
+    pdf.setResolution(300);
+    pdf.setPageMargins(QMarginsF(14, 14, 14, 14), QPageLayout::Millimeter);
+
+    QPainter p(&pdf);
+    if (!p.isActive()) {
+        m_descargandoPdf = false;
+        emit descargandoPdfChanged();
+        emit errorDescargaPdf("No se pudo crear el archivo PDF en " + rutaCompleta);
+        return;
+    }
+
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    const int pageW = pdf.width();
+    const int marginX = 70;
+    int y = 60;
+
+    // 1. Título principal centrado
+    p.setFont(QFont("Helvetica", 13, QFont::Bold));
+    p.setPen(QColor("#111827"));
+    p.drawText(QRect(marginX, y, pageW - 2 * marginX, 80), Qt::AlignCenter,
+               "CARNET ELECTRÓNICO DE LA UNIVERSIDAD DE CARABOBO");
+    y += 125;
+
+    // 2. Datos del estudiante (izquierda) y QR grande (derecha)
+    const QString apellidosCompletos = (m_primerApellido + (m_segundoApellido.isEmpty() ? "" : " " + m_segundoApellido)).trimmed().toUpper();
+    const QString nombresCompletos = (m_primerNombre + (m_segundoNombre.isEmpty() ? "" : " " + m_segundoNombre)).trimmed().toUpper();
+    QString carreraPdf = m_escuelaEstudiante.trimmed().toUpper();
+    if (carreraPdf.startsWith("ESCUELA DE ")) {
+        carreraPdf = carreraPdf.mid(11).trimmed();
+    }
+    if (carreraPdf.isEmpty()) {
+        carreraPdf = escuelaCorta().toUpper();
+    }
+
+    const QVector<QVector<int>> qrGrid = generarMatrizQrUrlCarnet();
+    const int qrGrandeSize = 440;
+    dibujarQrEnPainter(p, QRect(pageW - marginX - qrGrandeSize, y - 15, qrGrandeSize, qrGrandeSize), qrGrid);
+
+    const int infoW = pageW - 2 * marginX - qrGrandeSize - 40;
+    struct FilaInfo { QString eti; QString val; };
+    const QList<FilaInfo> filasInfo = {
+        {"CEDULA:", "V-" + cedulaLimpia},
+        {"APELLIDOS:", apellidosCompletos.isEmpty() ? m_nombreEstudiante.toUpper() : apellidosCompletos},
+        {"NOMBRES:", nombresCompletos},
+        {"FACULTAD:", "INGENIERÍA"},
+        {"CARRERA:", carreraPdf}
+    };
+
+    int yInfo = y + 10;
+    for (const FilaInfo &f : filasInfo) {
+        p.setFont(QFont("Helvetica", 10, QFont::Bold));
+        int anchoEti = p.fontMetrics().horizontalAdvance(f.eti + " ");
+        p.setPen(QColor("#111827"));
+        p.drawText(QRect(marginX, yInfo, anchoEti, 55), Qt::AlignLeft | Qt::AlignVCenter, f.eti);
+        p.setFont(QFont("Helvetica", 10, QFont::Normal));
+        p.drawText(QRect(marginX + anchoEti + 6, yInfo, infoW - anchoEti - 6, 55),
+                   Qt::AlignLeft | Qt::AlignVCenter, f.val);
+        yInfo += 60;
+    }
+
+    y = qMax(y + qrGrandeSize + 20, yInfo + 30);
+
+    // 3. Sección IMPORTANTE
+    p.setFont(QFont("Helvetica", 10, QFont::Bold));
+    p.setPen(QColor("#111827"));
+    p.drawText(QRect(marginX, y, pageW - 2 * marginX, 55), Qt::AlignLeft | Qt::AlignVCenter, "IMPORTANTE");
+    y += 70;
+
+    auto dibujarVineta = [&p, marginX, pageW](int &yPos, const QString &texto, int fontPt = 9) {
+        p.setFont(QFont("Helvetica", fontPt, QFont::Normal));
+        p.setPen(QColor("#111827"));
+        const int bulletX = marginX + 55;
+        const int textX = marginX + 105;
+        const int textW = pageW - marginX - textX - 20;
+        p.drawText(QRect(bulletX, yPos, 40, 50), Qt::AlignLeft | Qt::AlignTop, "•");
+        QRect bound = p.boundingRect(QRect(textX, yPos, textW, 500),
+                                     Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, texto);
+        p.drawText(QRect(textX, yPos, textW, bound.height() + 10),
+                   Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, texto);
+        yPos += bound.height() + 18;
+    };
+
+    dibujarVineta(y, "Carnet único de la Universidad de Carabobo. Aprobado por el Consejo Universitario en sesión extraordinaria Nro. 1.915 de fecha 25 de febrero de 2021.");
+    dibujarVineta(y, "Esta credencial es de uso personal, intransferible y de porte obligatorio dentro de las instalaciones de la universidad.");
+    y += 35;
+
+    // 4. Recuadro central del Carnet (Anverso | Reverso)
+    const int cardMarginX = marginX + 110;
+    const int cardW = pageW - 2 * cardMarginX;
+    const int cardH = 560;
+    const int midX = cardMarginX + cardW / 2;
+    const QRect cardRect(cardMarginX, y, cardW, cardH);
+
+    p.fillRect(cardRect, Qt::white);
+    p.setPen(QPen(QColor("#6b7280"), 3));
+    p.drawRect(cardRect);
+    p.drawLine(midX, y, midX, y + cardH);
+
+    // ---- Mitad Izquierda: Anverso ----
+    const int padC = 22;
+    const int leftW = (cardW / 2) - 2 * padC;
+    const int leftX = cardMarginX + padC;
+    const int logoSize = 115;
+
+    p.setFont(QFont("Helvetica", 10, QFont::Bold));
+    p.setPen(QColor("#000000"));
+    p.drawText(QRect(leftX, y + 18, leftW - logoSize - 16, 105),
+               Qt::AlignRight | Qt::AlignVCenter, "UNIVERSIDAD DE\nCARABOBO");
+
+    QImage logoUc(":/qt/qml/AppDAE/servicios/logo_uc.png");
+    if (!logoUc.isNull()) {
+        QImage esc = logoUc.scaled(logoSize, logoSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        p.drawImage(leftX + leftW - esc.width(), y + 14, esc);
+    }
+
+    // Foto de perfil del usuario (si existe)
+    const int bodyY = y + 145;
+    const int fotoW = 195;
+    const int fotoH = 260;
+    const QRect fotoRect(leftX + 4, bodyY + 10, fotoW, fotoH);
+
+    QString rutaFotoLimpia = rutaFotoPerfil.trimmed();
+    if (rutaFotoLimpia.startsWith("file://")) {
+        rutaFotoLimpia = QUrl(rutaFotoLimpia).toLocalFile();
+    }
+    if (rutaFotoLimpia.isEmpty()) {
+        rutaFotoLimpia = m_urlFotoPerfil.trimmed();
+        if (rutaFotoLimpia.startsWith("file://")) {
+            rutaFotoLimpia = QUrl(rutaFotoLimpia).toLocalFile();
+        }
+    }
+
+    QImage imgFoto;
+    if (!rutaFotoLimpia.isEmpty() && QFileInfo::exists(rutaFotoLimpia)) {
+        imgFoto.load(rutaFotoLimpia);
+    }
+    if (!imgFoto.isNull()) {
+        QImage escalada = imgFoto.scaled(fotoW, fotoH, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        const int cropX = qMax(0, (escalada.width() - fotoW) / 2);
+        const int cropY = qMax(0, (escalada.height() - fotoH) / 2);
+        p.drawImage(fotoRect, escalada, QRect(cropX, cropY, fotoW, fotoH));
+        p.setPen(QPen(QColor("#9ca3af"), 2));
+        p.drawRect(fotoRect);
+    } else {
+        p.setPen(QPen(QColor("#cbd5e1"), 2));
+        p.drawRect(fotoRect);
+        p.setFont(QFont("Helvetica", 8, QFont::Normal));
+        p.setPen(QColor("#64748b"));
+        p.drawText(fotoRect, Qt::AlignCenter, "FOTO");
+    }
+
+    // QR pequeño derecho del anverso
+    const int qrCarnetSize = 265;
+    const int qrCarnetX = leftX + leftW - qrCarnetSize;
+    dibujarQrEnPainter(p, QRect(qrCarnetX, bodyY + 5, qrCarnetSize, qrCarnetSize), qrGrid);
+
+    // Datos centrales entre foto y QR
+    const int datosX = fotoRect.right() + 18;
+    const int datosW = qrCarnetX - datosX - 10;
+    int dy = bodyY + 6;
+
+    p.setFont(QFont("Helvetica", 8, QFont::Bold));
+    p.setPen(QColor("#000000"));
+    p.drawText(QRect(datosX, dy, datosW, 40), Qt::AlignLeft | Qt::AlignVCenter, "V-" + cedulaLimpia);
+    dy += 44;
+
+    const QString apCorto = (m_primerApellido + (m_segundoApellido.isEmpty() ? "" : " " + m_segundoApellido.left(1))).trimmed().toUpper();
+    const QString nomCorto = (m_primerNombre + (m_segundoNombre.isEmpty() ? "" : " " + m_segundoNombre.left(1))).trimmed().toUpper();
+    p.setFont(QFont("Helvetica", 7, QFont::Normal));
+    p.drawText(QRect(datosX, dy, datosW, 34), Qt::AlignLeft | Qt::AlignVCenter,
+               apCorto.isEmpty() ? m_nombreEstudiante.toUpper() : apCorto);
+    dy += 34;
+    p.drawText(QRect(datosX, dy, datosW, 34), Qt::AlignLeft | Qt::AlignVCenter, nomCorto);
+    dy += 40;
+
+    // Cinta verde ESTUDIANTE
+    const QRect badgeRect(datosX, dy, qMin(datosW, 250), 46);
+    p.fillRect(badgeRect, QColor("#65a30d"));
+    p.setFont(QFont("Helvetica", 8, QFont::Bold));
+    p.setPen(Qt::white);
+    p.drawText(badgeRect, Qt::AlignCenter, "ESTUDIANTE");
+    dy += 54;
+
+    // Fecha de vencimiento: siempre 31 de diciembre del año en curso
+    const QString fechaVence = QString("31-12-%1").arg(QDate::currentDate().year());
+    p.setFont(QFont("Helvetica", 6, QFont::Normal));
+    p.setPen(QColor("#111827"));
+    p.drawText(QRect(datosX, dy, datosW, 32), Qt::AlignLeft | Qt::AlignVCenter, "VENCE: " + fechaVence);
+
+    // Pie del anverso: ING - ESCUELA
+    p.setFont(QFont("Helvetica", 9, QFont::Bold));
+    p.setPen(QColor("#000000"));
+    p.drawText(QRect(leftX, y + cardH - 65, leftW, 50), Qt::AlignCenter,
+               "ING - " + escuelaCorta().toUpper());
+
+    // ---- Mitad Derecha: Reverso ----
+    const int rightX = midX + padC;
+    const int rightW = (cardW / 2) - 2 * padC;
+    const int qrRevSize = 270;
+    const int qrRevX = rightX + rightW - qrRevSize;
+    dibujarQrEnPainter(p, QRect(qrRevX, y + 18, qrRevSize, qrRevSize), qrGrid);
+
+    const int revTextW = qrRevX - rightX - 18;
+    p.setFont(QFont("Helvetica", 7, QFont::Normal));
+    p.setPen(QColor("#111827"));
+    p.drawText(QRect(rightX, y + 24, revTextW, 250),
+               Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+               "Carnet único de la Universidad de Carabobo. Aprobado por el Consejo Universitario en sesión extraordinaria Nro. 1.915 de fecha 25 de febrero de 2021");
+
+    p.drawText(QRect(rightX, y + 295, revTextW, 130),
+               Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+               "Para verificar la validez de este carnet ingrese a:\nhttps://carnet.uc.edu.ve");
+
+    // Firma del Secretario abajo a la derecha
+    const int sigX = qrRevX + 20;
+    const int sigY = y + cardH - 185;
+    QPainterPath firma;
+    firma.moveTo(sigX + 20, sigY + 60);
+    firma.cubicTo(sigX + 50, sigY + 10, sigX + 110, sigY + 12, sigX + 90, sigY + 52);
+    firma.cubicTo(sigX + 75, sigY + 75, sigX + 145, sigY + 25, sigX + 205, sigY + 38);
+    firma.moveTo(sigX + 55, sigY + 50);
+    firma.lineTo(sigX + 175, sigY + 50);
+    p.setPen(QPen(QColor("#1e293b"), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(firma);
+
+    p.setFont(QFont("Helvetica", 6, QFont::Normal));
+    p.setPen(QColor("#111827"));
+    p.drawText(QRect(qrRevX, y + cardH - 105, qrRevSize, 34), Qt::AlignCenter, "PROF. PABLO AURE");
+    p.drawText(QRect(qrRevX, y + cardH - 72, qrRevSize, 32), Qt::AlignCenter, "SECRETARIO");
+
+    y += cardH + 65;
+
+    // 5. Instrucciones inferiores (5 viñetas)
+    dibujarVineta(y, "Debe imprimir este carnet a color y en alta calidad (preferiblemente en impresora laser).");
+    dibujarVineta(y, "No plastifique el carnet hasta tanto sea sellado por la Dirección Central de Asuntos Estudiantiles (DICAES) en el caso de Bárbula o la Secretaría en el caso de La Morita.");
+    dibujarVineta(y, "Debe pegar una foto tipo carnet en el área dispuesta para ello. La foto debe ser fondo blanco, sin anteojos, gorras u otros accesorios. No utilizar grapas para pegar la foto.");
+    dibujarVineta(y, "Bárbula: Debe dirigirse a la Dirección Central de Asuntos Estudiantiles (DICAES) con el carnet impreso con la foto pegada y su cédula de identidad laminada para validar el carnet y obtener el sello del mismo. Horario de atención: Martes y Jueves de 8:30 am a 11:00 am");
+    dibujarVineta(y, "La Morita: Debe dirigirse a la Secretaría con el carnet impreso con la foto pegada y su cédula de identidad laminada para validar el carnet y obtener el sello del mismo. Horario de atención: Martes y Jueves de 8:30 am a 11:00 am");
 
     p.end();
 
