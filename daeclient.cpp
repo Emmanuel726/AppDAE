@@ -3704,11 +3704,25 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
     p.setPen(QColor("#111827"));
     p.drawText(QRect(datosX, dy, datosW, 36), Qt::AlignLeft | Qt::AlignVCenter, "VENCE: " + fechaVence);
 
-    // Pie del anverso: ING - ESCUELA
+    // Pie del anverso: ING - ESCUELA (sin duplicar ING)
+    QString pieEscuela = escuelaCorta().toUpper();
+    if (pieEscuela.startsWith("ING. DE ")) {
+        pieEscuela = pieEscuela.mid(8).trimmed();
+    } else if (pieEscuela.startsWith("ING. ")) {
+        pieEscuela = pieEscuela.mid(5).trimmed();
+    } else if (pieEscuela.startsWith("INGENIERÍA DE ")) {
+        pieEscuela = pieEscuela.mid(14).trimmed();
+    } else if (pieEscuela.startsWith("INGENIERIA DE ")) {
+        pieEscuela = pieEscuela.mid(14).trimmed();
+    } else if (pieEscuela.startsWith("INGENIERÍA ")) {
+        pieEscuela = pieEscuela.mid(11).trimmed();
+    } else if (pieEscuela.startsWith("INGENIERIA ")) {
+        pieEscuela = pieEscuela.mid(11).trimmed();
+    }
     p.setFont(QFont("Helvetica", 12, QFont::Bold));
     p.setPen(QColor("#000000"));
     p.drawText(QRect(leftX, y + cardH - 64, leftW, 52), Qt::AlignCenter,
-               "ING - " + escuelaCorta().toUpper());
+               "ING - " + pieEscuela);
 
     // ---- Mitad Derecha: Reverso ----
     const int rightX = midX + padC + 10;
