@@ -3546,8 +3546,8 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
     }
 
     const QVector<QVector<int>> qrGrid = generarMatrizQrUrlCarnet();
-    const int qrGrandeSize = 440;
-    dibujarQrEnPainter(p, QRect(pageW - marginX - qrGrandeSize, y - 15, qrGrandeSize, qrGrandeSize), qrGrid);
+    const int qrGrandeSize = 390;
+    dibujarQrEnPainter(p, QRect(pageW - marginX - qrGrandeSize, y - 10, qrGrandeSize, qrGrandeSize), qrGrid);
 
     const int infoW = pageW - 2 * marginX - qrGrandeSize - 40;
     struct FilaInfo { QString eti; QString val; };
@@ -3559,19 +3559,19 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
         {"CARRERA:", carreraPdf}
     };
 
-    int yInfo = y + 10;
+    int yInfo = y + 8;
     for (const FilaInfo &f : filasInfo) {
         p.setFont(QFont("Helvetica", 10, QFont::Bold));
         int anchoEti = p.fontMetrics().horizontalAdvance(f.eti + " ");
         p.setPen(QColor("#111827"));
-        p.drawText(QRect(marginX, yInfo, anchoEti, 55), Qt::AlignLeft | Qt::AlignVCenter, f.eti);
+        p.drawText(QRect(marginX, yInfo, anchoEti, 52), Qt::AlignLeft | Qt::AlignVCenter, f.eti);
         p.setFont(QFont("Helvetica", 10, QFont::Normal));
-        p.drawText(QRect(marginX + anchoEti + 6, yInfo, infoW - anchoEti - 6, 55),
+        p.drawText(QRect(marginX + anchoEti + 6, yInfo, infoW - anchoEti - 6, 52),
                    Qt::AlignLeft | Qt::AlignVCenter, f.val);
-        yInfo += 60;
+        yInfo += 54;
     }
 
-    y = qMax(y + qrGrandeSize + 20, yInfo + 30);
+    y = qMax(y + qrGrandeSize + 25, yInfo + 30);
 
     // 3. Sección IMPORTANTE
     p.setFont(QFont("Helvetica", 10, QFont::Bold));
@@ -3595,12 +3595,12 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
 
     dibujarVineta(y, "Carnet único de la Universidad de Carabobo. Aprobado por el Consejo Universitario en sesión extraordinaria Nro. 1.915 de fecha 25 de febrero de 2021.");
     dibujarVineta(y, "Esta credencial es de uso personal, intransferible y de porte obligatorio dentro de las instalaciones de la universidad.");
-    y += 35;
+    y += 30;
 
-    // 4. Recuadro central del Carnet (Anverso | Reverso)
-    const int cardMarginX = marginX + 110;
+    // 4. Recuadro central del Carnet (Anverso | Reverso) con proporciones fieles al formato oficial
+    const int cardMarginX = marginX + 165;
     const int cardW = pageW - 2 * cardMarginX;
-    const int cardH = 560;
+    const int cardH = 470;
     const int midX = cardMarginX + cardW / 2;
     const QRect cardRect(cardMarginX, y, cardW, cardH);
 
@@ -3610,27 +3610,29 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
     p.drawLine(midX, y, midX, y + cardH);
 
     // ---- Mitad Izquierda: Anverso ----
-    const int padC = 22;
-    const int leftW = (cardW / 2) - 2 * padC;
+    const int padC = 20;
+    const int halfW = cardW / 2;
+    const int leftW = halfW - 2 * padC;
     const int leftX = cardMarginX + padC;
-    const int logoSize = 115;
+    const int logoW = 115;
+    const int logoH = 128;
 
-    p.setFont(QFont("Helvetica", 10, QFont::Bold));
+    p.setFont(QFont("Helvetica", 9, QFont::Bold));
     p.setPen(QColor("#000000"));
-    p.drawText(QRect(leftX, y + 18, leftW - logoSize - 16, 105),
+    p.drawText(QRect(leftX, y + 16, leftW - logoW - 14, 110),
                Qt::AlignRight | Qt::AlignVCenter, "UNIVERSIDAD DE\nCARABOBO");
 
     QImage logoUc(":/qt/qml/AppDAE/servicios/logo_uc.png");
     if (!logoUc.isNull()) {
-        QImage esc = logoUc.scaled(logoSize, logoSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        p.drawImage(leftX + leftW - esc.width(), y + 14, esc);
+        QImage esc = logoUc.scaled(logoW, logoH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        p.drawImage(leftX + leftW - esc.width(), y + 12, esc);
     }
 
-    // Foto de perfil del usuario (si existe)
-    const int bodyY = y + 145;
-    const int fotoW = 195;
-    const int fotoH = 260;
-    const QRect fotoRect(leftX + 4, bodyY + 10, fotoW, fotoH);
+    // Foto de perfil del usuario (proporción 3:4 compacta como en el documento oficial)
+    const int bodyY = y + 148;
+    const int fotoW = 148;
+    const int fotoH = 196;
+    const QRect fotoRect(leftX + 18, bodyY + 18, fotoW, fotoH);
 
     QString rutaFotoLimpia = rutaFotoPerfil.trimmed();
     if (rutaFotoLimpia.startsWith("file://")) {
@@ -3657,92 +3659,92 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
     } else {
         p.setPen(QPen(QColor("#cbd5e1"), 2));
         p.drawRect(fotoRect);
-        p.setFont(QFont("Helvetica", 8, QFont::Normal));
+        p.setFont(QFont("Helvetica", 7, QFont::Normal));
         p.setPen(QColor("#64748b"));
         p.drawText(fotoRect, Qt::AlignCenter, "FOTO");
     }
 
-    // QR pequeño derecho del anverso
-    const int qrCarnetSize = 265;
+    // QR derecho del anverso
+    const int qrCarnetSize = 212;
     const int qrCarnetX = leftX + leftW - qrCarnetSize;
-    dibujarQrEnPainter(p, QRect(qrCarnetX, bodyY + 5, qrCarnetSize, qrCarnetSize), qrGrid);
+    dibujarQrEnPainter(p, QRect(qrCarnetX, bodyY + 6, qrCarnetSize, qrCarnetSize), qrGrid);
 
     // Datos centrales entre foto y QR
-    const int datosX = fotoRect.right() + 18;
+    const int datosX = fotoRect.right() + 20;
     const int datosW = qrCarnetX - datosX - 10;
-    int dy = bodyY + 6;
+    int dy = bodyY + 12;
 
-    p.setFont(QFont("Helvetica", 8, QFont::Bold));
+    p.setFont(QFont("Helvetica", 7, QFont::Bold));
     p.setPen(QColor("#000000"));
-    p.drawText(QRect(datosX, dy, datosW, 40), Qt::AlignLeft | Qt::AlignVCenter, "V-" + cedulaLimpia);
-    dy += 44;
+    p.drawText(QRect(datosX, dy, datosW, 36), Qt::AlignLeft | Qt::AlignVCenter, "V-" + cedulaLimpia);
+    dy += 38;
 
     const QString apCorto = (m_primerApellido + (m_segundoApellido.isEmpty() ? "" : " " + m_segundoApellido.left(1))).trimmed().toUpper();
     const QString nomCorto = (m_primerNombre + (m_segundoNombre.isEmpty() ? "" : " " + m_segundoNombre.left(1))).trimmed().toUpper();
-    p.setFont(QFont("Helvetica", 7, QFont::Normal));
-    p.drawText(QRect(datosX, dy, datosW, 34), Qt::AlignLeft | Qt::AlignVCenter,
+    p.setFont(QFont("Helvetica", 6, QFont::Normal));
+    p.drawText(QRect(datosX, dy, datosW, 30), Qt::AlignLeft | Qt::AlignVCenter,
                apCorto.isEmpty() ? m_nombreEstudiante.toUpper() : apCorto);
+    dy += 30;
+    p.drawText(QRect(datosX, dy, datosW, 30), Qt::AlignLeft | Qt::AlignVCenter, nomCorto);
     dy += 34;
-    p.drawText(QRect(datosX, dy, datosW, 34), Qt::AlignLeft | Qt::AlignVCenter, nomCorto);
-    dy += 40;
 
     // Cinta verde ESTUDIANTE
-    const QRect badgeRect(datosX, dy, qMin(datosW, 250), 46);
+    const QRect badgeRect(datosX, dy, qMin(datosW, 215), 38);
     p.fillRect(badgeRect, QColor("#65a30d"));
-    p.setFont(QFont("Helvetica", 8, QFont::Bold));
+    p.setFont(QFont("Helvetica", 7, QFont::Bold));
     p.setPen(Qt::white);
     p.drawText(badgeRect, Qt::AlignCenter, "ESTUDIANTE");
-    dy += 54;
+    dy += 44;
 
     // Fecha de vencimiento: siempre 31 de diciembre del año en curso
     const QString fechaVence = QString("31-12-%1").arg(QDate::currentDate().year());
-    p.setFont(QFont("Helvetica", 6, QFont::Normal));
+    p.setFont(QFont("Helvetica", 5, QFont::Normal));
     p.setPen(QColor("#111827"));
-    p.drawText(QRect(datosX, dy, datosW, 32), Qt::AlignLeft | Qt::AlignVCenter, "VENCE: " + fechaVence);
+    p.drawText(QRect(datosX, dy, datosW, 28), Qt::AlignLeft | Qt::AlignVCenter, "VENCE: " + fechaVence);
 
     // Pie del anverso: ING - ESCUELA
-    p.setFont(QFont("Helvetica", 9, QFont::Bold));
+    p.setFont(QFont("Helvetica", 8, QFont::Bold));
     p.setPen(QColor("#000000"));
-    p.drawText(QRect(leftX, y + cardH - 65, leftW, 50), Qt::AlignCenter,
+    p.drawText(QRect(leftX, y + cardH - 52, leftW, 42), Qt::AlignCenter,
                "ING - " + escuelaCorta().toUpper());
 
     // ---- Mitad Derecha: Reverso ----
-    const int rightX = midX + padC;
-    const int rightW = (cardW / 2) - 2 * padC;
-    const int qrRevSize = 270;
+    const int rightX = midX + padC + 6;
+    const int rightW = halfW - 2 * padC - 6;
+    const int qrRevSize = 225;
     const int qrRevX = rightX + rightW - qrRevSize;
     dibujarQrEnPainter(p, QRect(qrRevX, y + 18, qrRevSize, qrRevSize), qrGrid);
 
     const int revTextW = qrRevX - rightX - 18;
-    p.setFont(QFont("Helvetica", 7, QFont::Normal));
+    p.setFont(QFont("Helvetica", 6, QFont::Normal));
     p.setPen(QColor("#111827"));
-    p.drawText(QRect(rightX, y + 24, revTextW, 250),
+    p.drawText(QRect(rightX, y + 22, revTextW, 220),
                Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
                "Carnet único de la Universidad de Carabobo. Aprobado por el Consejo Universitario en sesión extraordinaria Nro. 1.915 de fecha 25 de febrero de 2021");
 
-    p.drawText(QRect(rightX, y + 295, revTextW, 130),
+    p.drawText(QRect(rightX, y + 260, revTextW, 110),
                Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
                "Para verificar la validez de este carnet ingrese a:\nhttps://carnet.uc.edu.ve");
 
-    // Firma del Secretario abajo a la derecha
-    const int sigX = qrRevX + 20;
-    const int sigY = y + cardH - 185;
+    // Firma del Secretario debajo del QR del reverso
+    const int sigX = qrRevX + 18;
+    const int sigY = y + cardH - 175;
     QPainterPath firma;
-    firma.moveTo(sigX + 20, sigY + 60);
-    firma.cubicTo(sigX + 50, sigY + 10, sigX + 110, sigY + 12, sigX + 90, sigY + 52);
-    firma.cubicTo(sigX + 75, sigY + 75, sigX + 145, sigY + 25, sigX + 205, sigY + 38);
-    firma.moveTo(sigX + 55, sigY + 50);
-    firma.lineTo(sigX + 175, sigY + 50);
-    p.setPen(QPen(QColor("#1e293b"), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    firma.moveTo(sigX + 18, sigY + 52);
+    firma.cubicTo(sigX + 42, sigY + 10, sigX + 95, sigY + 12, sigX + 78, sigY + 46);
+    firma.cubicTo(sigX + 65, sigY + 66, sigX + 125, sigY + 20, sigX + 178, sigY + 34);
+    firma.moveTo(sigX + 45, sigY + 42);
+    firma.lineTo(sigX + 150, sigY + 42);
+    p.setPen(QPen(QColor("#1e293b"), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
     p.drawPath(firma);
 
-    p.setFont(QFont("Helvetica", 6, QFont::Normal));
+    p.setFont(QFont("Helvetica", 5, QFont::Normal));
     p.setPen(QColor("#111827"));
-    p.drawText(QRect(qrRevX, y + cardH - 105, qrRevSize, 34), Qt::AlignCenter, "PROF. PABLO AURE");
-    p.drawText(QRect(qrRevX, y + cardH - 72, qrRevSize, 32), Qt::AlignCenter, "SECRETARIO");
+    p.drawText(QRect(qrRevX + 12, y + cardH - 96, qrRevSize - 12, 28), Qt::AlignLeft | Qt::AlignVCenter, "PROF. PABLO AURE");
+    p.drawText(QRect(qrRevX + 12, y + cardH - 68, qrRevSize - 12, 28), Qt::AlignLeft | Qt::AlignVCenter, "SECRETARIO");
 
-    y += cardH + 65;
+    y += cardH + 60;
 
     // 5. Instrucciones inferiores (5 viñetas)
     dibujarVineta(y, "Debe imprimir este carnet a color y en alta calidad (preferiblemente en impresora laser).");
