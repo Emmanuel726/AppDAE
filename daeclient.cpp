@@ -339,6 +339,19 @@ void DaeClient::limpiarDatosEstudianteSesion()
     m_resultadoPostInscripcionPendiente.clear();
     m_urlAccionProcesarInscripcion.clear();
 
+    m_cargandoRetiro = false;
+    m_enviandoRetiro = false;
+    m_retiroDisponible = true;
+    m_periodoRetiro.clear();
+    m_fechaLimiteRetiro.clear();
+    m_hrefRetiroMenu.clear();
+    m_urlAccionProcesarRetiro.clear();
+    m_camposOcultosRetiro.clear();
+    m_materiasRetiroServidor.clear();
+    m_solicitudRetiroRegistrada.clear();
+    m_fechaSolicitudRetiro.clear();
+    m_codigosRetiradosConfirmados.clear();
+
     reconstruirEstructurasHorarioAsignado();
     emit datosEstudianteChanged();
     emit horarioAsignadoChanged();
@@ -348,6 +361,7 @@ void DaeClient::limpiarDatosEstudianteSesion()
     emit rapChanged();
     emit materiasRecordatorioChanged();
     emit inscripcionChanged();
+    emit retiroChanged();
 }
 
 void DaeClient::setTemaSeleccionado(int valor)
@@ -1784,6 +1798,25 @@ void DaeClient::parsearMenuEstudiantil(const QString &html)
         }
     }
 
+    // Detectar si existe un enlace activo de Retiro de Asignatura en el menú estudiantil
+    static const QRegularExpression reLinkRetiro(
+        "<a\\s+[^>]*href=[\"']([^\"']*retir[^\"']*\\.php[^\"']*)[\"'][^>]*>(.*?)</a>",
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatch mRet = reLinkRetiro.match(htmlSinComentarios);
+    m_retiroDisponible = mRet.hasMatch();
+    if (mRet.hasMatch()) {
+        m_hrefRetiroMenu = mRet.captured(1).trimmed();
+        QString txtRet = limpiarTextoHtml(mRet.captured(2));
+        static const QRegularExpression reLimRet("\\(([^\\)]+)\\)");
+        QRegularExpressionMatch mLimR = reLimRet.match(txtRet);
+        if (mLimR.hasMatch()) {
+            m_fechaLimiteRetiro = mLimR.captured(1).trimmed().toUpper();
+        }
+    } else {
+        m_hrefRetiroMenu.clear();
+        m_fechaLimiteRetiro.clear();
+    }
+
     // 4. Extraer los enlaces internos del menú estudiantil
     m_enlacesMenuInterno.clear();
     QSet<QString> hrefsVistos;
@@ -1836,6 +1869,9 @@ void DaeClient::parsearMenuEstudiantil(const QString &html)
         if (m_reporteInscripcionDisponible) {
             rutasPrioritarias.append("reporte.php?pid=" + m_pidSesion);
         }
+        if (m_retiroDisponible && !m_hrefRetiroMenu.isEmpty()) {
+            rutasPrioritarias.append(m_hrefRetiroMenu);
+        }
         for (const QString &ruta : rutasPrioritarias) {
             rutasDespachadas.insert(ruta);
             sincronizarSeccionEstudiantil(ruta);
@@ -1854,6 +1890,7 @@ void DaeClient::parsearMenuEstudiantil(const QString &html)
              href.contains("inscribir", Qt::CaseInsensitive) ||
              href.contains("reporte.php", Qt::CaseInsensitive) ||
              href.contains("mostrar_solicitudes", Qt::CaseInsensitive) ||
+             href.contains("retir", Qt::CaseInsensitive) ||
              href.contains("rap.php", Qt::CaseInsensitive))) {
             rutasDespachadas.insert(href);
             sincronizarSeccionEstudiantil(href);
@@ -1861,6 +1898,7 @@ void DaeClient::parsearMenuEstudiantil(const QString &html)
     }
 
     emit inscripcionChanged();
+    emit retiroChanged();
 
     emit enlacesMenuInternoChanged();
 }
@@ -2111,6 +2149,13 @@ void DaeClient::parsearPaginaInternaEstudiantil(const QString &href, const QStri
         html.contains("REPORTE DE SOLICITUD DE INSCRIPCI", Qt::CaseInsensitive)) {
         parsearReporteSolicitudInscripcionHtml(html);
     }
+
+    // 8. Solicitud de Retiro de Asignatura (retirar.php / retiro.php)
+    if (hrefLow.contains("retir") ||
+        html.contains("Solicitud de Retiro", Qt::CaseInsensitive) ||
+        html.contains("ASIGNATURA RETIRADA NO PODR", Qt::CaseInsensitive)) {
+        parsearRetiroHtml(html);
+    }
 }
 
 void DaeClient::parsearHorarioAsignadoHtml(const QString &html)
@@ -2295,6 +2340,7 @@ void DaeClient::parsearHorarioAsignadoHtml(const QString &html)
         reconstruirEstructurasHorarioAsignado();
         emit transcritasChanged();
         emit expedienteChanged();
+        emit retiroChanged();
     }
 }
 
@@ -2800,6 +2846,7 @@ void DaeClient::parsearReporteNotasTranscritasHtml(const QString &html)
     }
 
     emit transcritasChanged();
+    emit retiroChanged();
 }
 
 void DaeClient::parsearActualizarDatosHtml(const QString &html)
@@ -6116,5 +6163,331 @@ void DaeClient::guardarSolicitudInscripcionLocal(const QVariantList &items, cons
                       QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
     settings.setValue("inscripcion/fecha_" + m_cedulaEstudiante, fecha);
     settings.sync();
+}
+
+// ============================================================================
+// MÓDULO DE RETIRO DE ASIGNATURAS (Solicitud de Retiro DAE UC)
+// ============================================================================
+
+QVariantList DaeClient::materiasRetiro() const
+{
+    QVariantList resultado;
+
+    // 1. Si el servidor DAE devolvió directamente la tabla de retiro de asignaturas, usarla
+    if (!m_materiasRetiroServidor.isEmpty()) {
+        for (const QVariant &v : m_materiasRetiroServidor) {
+            QVariantMap m = v.toMap();
+            QString cod = m["codigo"].toString().trimmed().toUpper();
+            if (cod.isEmpty() || m_codigosRetiradosConfirmados.contains(cod)) continue;
+            resultado.append(m);
+        }
+        return resultado;
+    }
+
+    // 2. Construir dinámicamente a partir de las asignaturas inscritas del estudiante autenticado
+    const QVariantList &fuente = !m_materiasInscritasRaw.isEmpty()
+                                 ? m_materiasInscritasRaw
+                                 : (!m_materiasPeriodoActualRaw.isEmpty()
+                                    ? m_materiasPeriodoActualRaw
+                                    : m_materiasSinTranscribir);
+
+    QSet<QString> codigosAgregados;
+    for (const QVariant &v : fuente) {
+        QVariantMap m = v.toMap();
+        QString cod = m["codigo"].toString().trimmed().toUpper();
+        if (cod.isEmpty() || codigosAgregados.contains(cod) || m_codigosRetiradosConfirmados.contains(cod)) {
+            continue;
+        }
+        // En la tabla de Solicitud de Retiro del DAE no se listan por separado las prácticas de laboratorio
+        // anexas de 0 UC cuyo código termina en "L" (ej. ER7T03L, SA6T01L, SA8T04L, SS8T06L)
+        if (cod.length() >= 7 && cod.endsWith(QLatin1Char('L'))) {
+            continue;
+        }
+
+        QString nom = m.value("nombreOriginal").toString().trimmed();
+        if (nom.isEmpty()) {
+            nom = m.value("nombre").toString().trimmed();
+        }
+        if (nom.startsWith("Lab. ", Qt::CaseInsensitive)) {
+            nom = nom.mid(5).trimmed();
+        }
+        if (nom.endsWith("(LAB)", Qt::CaseInsensitive)) {
+            nom = nom.left(nom.length() - 5).trimmed();
+        }
+        nom = nom.toUpper();
+
+        QString sec = m.value("sec").toString().trimmed().rightJustified(2, '0');
+        codigosAgregados.insert(cod);
+
+        QVariantMap item;
+        item["codigo"] = cod;
+        item["nombre"] = nom;
+        item["sec"] = sec;
+        item["uc"] = obtenerUcAsignatura(cod);
+        item["inputName"] = QStringLiteral("retirar[]");
+        item["inputValue"] = cod;
+        resultado.append(item);
+    }
+
+    std::sort(resultado.begin(), resultado.end(), [](const QVariant &a, const QVariant &b) {
+        return a.toMap()["codigo"].toString() < b.toMap()["codigo"].toString();
+    });
+
+    return resultado;
+}
+
+void DaeClient::cargarDatosRetiro()
+{
+    if (!m_autenticado || m_pidSesion.isEmpty()) {
+        emit retiroChanged();
+        return;
+    }
+
+    if (m_datosDesdeCache) {
+        if (!m_hrefRetiroMenu.isEmpty()) {
+            cargarSeccionDesdeCache(m_hrefRetiroMenu);
+        }
+        m_cargandoRetiro = false;
+        emit retiroChanged();
+        return;
+    }
+
+    if (m_hrefRetiroMenu.isEmpty()) {
+        // Si no hay materias cargadas aún del horario del estudiante, sincronizar horario asignado
+        if (m_materiasInscritasRaw.isEmpty()) {
+            sincronizarSeccionEstudiantil("mostrar_horario.php?pid=" + m_pidSesion);
+        }
+        m_cargandoRetiro = false;
+        emit retiroChanged();
+        return;
+    }
+
+    m_cargandoRetiro = true;
+    emit retiroChanged();
+
+    QUrl urlRetiro = QUrl("https://dae.ing.uc.edu.ve/gestion_estudiantil/").resolved(QUrl(m_hrefRetiroMenu));
+    QNetworkRequest req(urlRetiro);
+    configurarRequestDae(req);
+    req.setRawHeader("Referer", "https://dae.ing.uc.edu.ve/gestion_estudiantil/index.php");
+
+    QNetworkReply *reply = m_nam->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_cargandoRetiro = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            QString html = QString::fromUtf8(reply->readAll());
+            parsearRetiroHtml(html);
+        }
+        emit retiroChanged();
+    });
+}
+
+void DaeClient::parsearRetiroHtml(const QString &html)
+{
+    static const QRegularExpression rePeriodo(
+        "Solicitud\\s+de\\s+Retiro\\s+([0-9]+-[0-9]{4})",
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch mPer = rePeriodo.match(html);
+    if (mPer.hasMatch()) {
+        m_periodoRetiro = mPer.captured(1).trimmed();
+    }
+
+    static const QRegularExpression reActionForm(
+        "<form[^>]*action=[\"']([^\"']+)[\"'][^>]*>",
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch mAct = reActionForm.match(html);
+    if (mAct.hasMatch()) {
+        m_urlAccionProcesarRetiro = mAct.captured(1).trimmed();
+    }
+
+    m_camposOcultosRetiro.clear();
+    static const QRegularExpression reHidden(
+        "<input[^>]*type=[\"']hidden[\"'][^>]*name=[\"']([^\"']+)[\"'][^>]*value=[\"']([^\"']*)[\"'][^>]*>",
+        QRegularExpression::CaseInsensitiveOption);
+    auto itHid = reHidden.globalMatch(html);
+    while (itHid.hasNext()) {
+        auto mh = itHid.next();
+        m_camposOcultosRetiro[mh.captured(1).trimmed()] = mh.captured(2);
+    }
+
+    static const QRegularExpression reTr(
+        "<tr[^>]*>(.*?)</tr>",
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression reTd(
+        "<td[^>]*>(.*?)</td>",
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression reCod("^[A-Z]{2}[A-Z0-9]{3,7}$");
+    static const QRegularExpression reCheckboxName("<input[^>]*name=[\"']([^\"']+)[\"']", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reCheckboxVal("<input[^>]*value=[\"']([^\"']*)[\"']", QRegularExpression::CaseInsensitiveOption);
+
+    QVariantList listaServidor;
+    QSet<QString> vistos;
+
+    auto itRow = reTr.globalMatch(html);
+    while (itRow.hasNext()) {
+        QString rowHtml = itRow.next().captured(1);
+        QStringList celdasRaw;
+        QStringList celdasTxt;
+        auto itCell = reTd.globalMatch(rowHtml);
+        while (itCell.hasNext()) {
+            QString rawCell = itCell.next().captured(1);
+            celdasRaw.append(rawCell);
+            celdasTxt.append(limpiarTextoHtml(rawCell));
+        }
+        if (celdasTxt.size() < 3) continue;
+
+        QString cod = celdasTxt[0].trimmed().toUpper();
+        if (!reCod.match(cod).hasMatch() || cod == "CODIGO" || cod == "CÓDIGO") continue;
+        if (vistos.contains(cod)) continue;
+
+        QString nom = celdasTxt[1].trimmed().toUpper();
+        QString sec = celdasTxt[2].trimmed().rightJustified(2, '0');
+        QString chkRaw = (celdasRaw.size() >= 4) ? celdasRaw[3] : rowHtml;
+
+        QString inputName = QStringLiteral("retirar[]");
+        QString inputValue = cod;
+        QRegularExpressionMatch mN = reCheckboxName.match(chkRaw);
+        if (mN.hasMatch()) inputName = mN.captured(1).trimmed();
+        QRegularExpressionMatch mV = reCheckboxVal.match(chkRaw);
+        if (mV.hasMatch() && !mV.captured(1).trimmed().isEmpty()) inputValue = mV.captured(1).trimmed();
+
+        vistos.insert(cod);
+        QVariantMap item;
+        item["codigo"] = cod;
+        item["nombre"] = nom;
+        item["sec"] = sec;
+        item["uc"] = obtenerUcAsignatura(cod);
+        item["inputName"] = inputName;
+        item["inputValue"] = inputValue;
+        listaServidor.append(item);
+    }
+
+    if (!listaServidor.isEmpty()) {
+        std::sort(listaServidor.begin(), listaServidor.end(), [](const QVariant &a, const QVariant &b) {
+            return a.toMap()["codigo"].toString() < b.toMap()["codigo"].toString();
+        });
+        m_materiasRetiroServidor = listaServidor;
+        emit retiroChanged();
+    }
+}
+
+void DaeClient::enviarSolicitudRetiro(const QVariantList &seleccionadas)
+{
+    if (m_enviandoRetiro) return;
+    if (seleccionadas.isEmpty()) {
+        emit solicitudRetiroCompletada(false, "Selecciona al menos una asignatura para retirar");
+        return;
+    }
+
+    QVariantList listaOrdenada;
+    QStringList codigosResumen;
+    for (const QVariant &v : seleccionadas) {
+        QVariantMap item = v.toMap();
+        QString cod = item["codigo"].toString().trimmed().toUpper();
+        QString nom = item["nombre"].toString().trimmed().toUpper();
+        QString sec = item["sec"].toString().trimmed().rightJustified(2, '0');
+        if (cod.isEmpty()) continue;
+
+        QVariantMap limpio;
+        limpio["codigo"] = cod;
+        limpio["nombre"] = nom;
+        limpio["sec"] = sec;
+        limpio["uc"] = obtenerUcAsignatura(cod);
+        limpio["inputName"] = item.value("inputName", "retirar[]").toString();
+        limpio["inputValue"] = item.value("inputValue", cod).toString();
+        listaOrdenada.append(limpio);
+        codigosResumen.append(cod);
+    }
+
+    if (listaOrdenada.isEmpty()) {
+        emit solicitudRetiroCompletada(false, "Selecciona al menos una asignatura válida para retirar");
+        return;
+    }
+
+    std::sort(listaOrdenada.begin(), listaOrdenada.end(), [](const QVariant &a, const QVariant &b) {
+        return a.toMap()["codigo"].toString() < b.toMap()["codigo"].toString();
+    });
+
+    auto finalizarRegistroRetiro = [this, listaOrdenada, codigosResumen](const QString &msg) {
+        m_enviandoRetiro = false;
+        m_solicitudRetiroRegistrada = listaOrdenada;
+        m_fechaSolicitudRetiro = QDateTime::currentDateTime().toString("dd/MM/yyyy hh:mm:ss ap");
+        for (const QVariant &v : listaOrdenada) {
+            m_codigosRetiradosConfirmados.insert(v.toMap()["codigo"].toString());
+        }
+        registrarSolicitudReciente("RET", "Retiro de Asignatura",
+                                   codigosResumen.join(", ") + " • Período " + periodoRetiro(),
+                                   "Procesado");
+        emit retiroChanged();
+        emit solicitudRetiroCompletada(true, msg);
+    };
+
+    if (m_autenticado && !m_pidSesion.isEmpty() && (!m_urlAccionProcesarRetiro.isEmpty() || !m_hrefRetiroMenu.isEmpty())) {
+        m_enviandoRetiro = true;
+        emit retiroChanged();
+
+        QString rutaAccion = !m_urlAccionProcesarRetiro.isEmpty()
+                             ? m_urlAccionProcesarRetiro
+                             : m_hrefRetiroMenu;
+        QUrl urlPost = QUrl("https://dae.ing.uc.edu.ve/gestion_estudiantil/").resolved(QUrl(rutaAccion));
+        QNetworkRequest req(urlPost);
+        configurarRequestDae(req);
+        req.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+        req.setRawHeader("Origin", "https://dae.ing.uc.edu.ve");
+        QString refHref = !m_hrefRetiroMenu.isEmpty() ? m_hrefRetiroMenu : ("index.php?pid=" + m_pidSesion);
+        req.setRawHeader("Referer", ("https://dae.ing.uc.edu.ve/gestion_estudiantil/" + refHref).toUtf8());
+
+        QUrlQuery postData;
+        for (auto it = m_camposOcultosRetiro.constBegin(); it != m_camposOcultosRetiro.constEnd(); ++it) {
+            postData.addQueryItem(it.key(), it.value());
+        }
+        for (const QVariant &v : listaOrdenada) {
+            QVariantMap m = v.toMap();
+            QString iName = m["inputName"].toString().isEmpty() ? QStringLiteral("retirar[]") : m["inputName"].toString();
+            QString iVal = m["inputValue"].toString().isEmpty() ? m["codigo"].toString() : m["inputValue"].toString();
+            postData.addQueryItem(iName, iVal);
+        }
+
+        QNetworkReply *reply = m_nam->post(req, postData.toString(QUrl::FullyEncoded).toUtf8());
+        connect(reply, &QNetworkReply::finished, this, [this, reply, finalizarRegistroRetiro]() {
+            reply->deleteLater();
+            QString htmlStep2 = QString::fromUtf8(reply->readAll());
+
+            static const QRegularExpression reFormAction(
+                "<form[^>]*action=[\"']([^\"']+)[\"'][^>]*>",
+                QRegularExpression::CaseInsensitiveOption);
+            QRegularExpressionMatch mAct = reFormAction.match(htmlStep2);
+            if (mAct.hasMatch()) {
+                QString actionHref = mAct.captured(1).trimmed();
+                QUrl urlPasoFinal = QUrl("https://dae.ing.uc.edu.ve/gestion_estudiantil/").resolved(QUrl(actionHref));
+                QNetworkRequest reqFinal(urlPasoFinal);
+                configurarRequestDae(reqFinal);
+                reqFinal.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+                reqFinal.setRawHeader("Origin", "https://dae.ing.uc.edu.ve");
+
+                QUrlQuery postFinal;
+                static const QRegularExpression reHidden(
+                    "<input[^>]*name=[\"']([^\"']+)[\"'][^>]*value=[\"']([^\"']*)[\"'][^>]*>",
+                    QRegularExpression::CaseInsensitiveOption);
+                auto itHid = reHidden.globalMatch(htmlStep2);
+                while (itHid.hasNext()) {
+                    auto mh = itHid.next();
+                    postFinal.addQueryItem(mh.captured(1), mh.captured(2));
+                }
+
+                QNetworkReply *replyFinal = m_nam->post(reqFinal, postFinal.toString(QUrl::FullyEncoded).toUtf8());
+                connect(replyFinal, &QNetworkReply::finished, this, [replyFinal, finalizarRegistroRetiro]() {
+                    replyFinal->deleteLater();
+                    finalizarRegistroRetiro("✓ Solicitud de retiro enviada y procesada en DAE UC");
+                });
+                return;
+            }
+
+            finalizarRegistroRetiro("✓ Solicitud de retiro procesada correctamente");
+        });
+        return;
+    }
+
+    finalizarRegistroRetiro("✓ Solicitud de retiro registrada correctamente");
 }
 

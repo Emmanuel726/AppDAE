@@ -146,6 +146,16 @@ class DaeClient : public QObject
     Q_PROPERTY(bool cargandoInscripcion READ cargandoInscripcion NOTIFY inscripcionChanged)
     Q_PROPERTY(bool enviandoInscripcion READ enviandoInscripcion NOTIFY inscripcionChanged)
 
+    // Solicitud de Retiro de Asignaturas (retirar.php / horario asignado del estudiante)
+    Q_PROPERTY(QVariantList materiasRetiro READ materiasRetiro NOTIFY retiroChanged)
+    Q_PROPERTY(QVariantList solicitudRetiroRegistrada READ solicitudRetiroRegistrada NOTIFY retiroChanged)
+    Q_PROPERTY(QString fechaSolicitudRetiro READ fechaSolicitudRetiro NOTIFY retiroChanged)
+    Q_PROPERTY(QString periodoRetiro READ periodoRetiro NOTIFY retiroChanged)
+    Q_PROPERTY(QString fechaLimiteRetiro READ fechaLimiteRetiro NOTIFY retiroChanged)
+    Q_PROPERTY(bool retiroDisponible READ retiroDisponible NOTIFY retiroChanged)
+    Q_PROPERTY(bool cargandoRetiro READ cargandoRetiro NOTIFY retiroChanged)
+    Q_PROPERTY(bool enviandoRetiro READ enviandoRetiro NOTIFY retiroChanged)
+
 public:
     explicit DaeClient(QObject *parent = nullptr);
 
@@ -269,6 +279,15 @@ public:
     bool cargandoInscripcion() const { return m_cargandoInscripcion; }
     bool enviandoInscripcion() const { return m_enviandoInscripcion; }
 
+    QVariantList materiasRetiro() const;
+    QVariantList solicitudRetiroRegistrada() const { return m_solicitudRetiroRegistrada; }
+    QString fechaSolicitudRetiro() const { return m_fechaSolicitudRetiro; }
+    QString periodoRetiro() const { return m_periodoRetiro.isEmpty() ? m_periodoActual : m_periodoRetiro; }
+    QString fechaLimiteRetiro() const { return m_fechaLimiteRetiro; }
+    bool retiroDisponible() const { return m_retiroDisponible; }
+    bool cargandoRetiro() const { return m_cargandoRetiro; }
+    bool enviandoRetiro() const { return m_enviandoRetiro; }
+
     // Acciones invocables desde QML
     Q_INVOKABLE void iniciarSesion(const QString &cedula, const QString &clave);
     // Fuerza una consulta real al DAE aunque exista una copia en caché
@@ -284,6 +303,9 @@ public:
     Q_INVOKABLE void cargarDatosInscripcion();
     Q_INVOKABLE void prepararPasoConfirmacionInscripcion(const QVariantList &seleccionadas);
     Q_INVOKABLE void registrarSolicitudInscripcion(const QVariantList &seleccionadas);
+
+    Q_INVOKABLE void cargarDatosRetiro();
+    Q_INVOKABLE void enviarSolicitudRetiro(const QVariantList &seleccionadas);
 
     Q_INVOKABLE void cargarOfertaHorarios();
     Q_INVOKABLE QVariantList filtrarHorariosOferta(int pensumIdx, int estadoIdx, const QString &busqueda, int limite) const;
@@ -383,6 +405,8 @@ signals:
     void tecladoVisibleChanged();
     void recordatoriosChanged();
     void solicitudInscripcionCompletada(bool exito, const QString &mensaje);
+    void retiroChanged();
+    void solicitudRetiroCompletada(bool exito, const QString &mensaje);
     void cambioEscuelaChanged();
     void solicitudCambioEscuelaCompletada(bool exito, const QString &mensaje);
     void datosPersonalesGuardados(bool exito, const QString &mensaje);
@@ -537,6 +561,20 @@ private:
     QString m_urlAccionConfirmarInscripcion;
     QMap<QString, QString> m_camposOcultosConfirmarInscripcion;
 
+    // Estado y datos de la Solicitud de Retiro de Asignatura
+    bool m_cargandoRetiro = false;
+    bool m_enviandoRetiro = false;
+    bool m_retiroDisponible = true;
+    QString m_periodoRetiro;
+    QString m_fechaLimiteRetiro;
+    QString m_hrefRetiroMenu;
+    QString m_urlAccionProcesarRetiro;
+    QMap<QString, QString> m_camposOcultosRetiro;
+    QVariantList m_materiasRetiroServidor;
+    QVariantList m_solicitudRetiroRegistrada;
+    QString m_fechaSolicitudRetiro;
+    QSet<QString> m_codigosRetiradosConfirmados;
+
     // Helpers internos de scraping y limpieza de HTML
     static QString limpiarTextoHtml(QString html);
     void parsearMenuEstudiantil(const QString &html);
@@ -548,6 +586,7 @@ private:
     void parsearActualizarDatosHtml(const QString &html);
     void parsearInscripcionHtml(const QString &html);
     void parsearReporteSolicitudInscripcionHtml(const QString &html);
+    void parsearRetiroHtml(const QString &html);
     void reconstruirOfertaInscripcionDesdeRap();
     void cargarSolicitudInscripcionLocal();
     void guardarSolicitudInscripcionLocal(const QVariantList &items, const QString &fecha);

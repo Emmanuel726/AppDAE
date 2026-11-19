@@ -1759,11 +1759,70 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "Cliente móvil independiente y de código abierto desarrollado por un estudiante de Ingeniería de Telecomunicaciones UC. Esta aplicación es gratuita y sin fines de lucro."
+                        text: "Cliente móvil independiente y de código abierto desarrollado por un estudiante de Ingeniería de Telecomunicaciones de la UC. Esta aplicación es gratuita y sin fines de lucro."
                         color: temaApp.textoSecundario
                         font.pixelSize: 12
                         lineHeight: 1.3
                         wrapMode: Text.WordWrap
+                    }
+
+                    Rectangle {
+                        id: btnAbrirGithub
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 46
+                        radius: 14
+                        color: temaApp.panelAlt
+                        border.color: temaApp.bordeAlt
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 9
+
+                            // Icono vectorial de repositorio / código en GitHub
+                            Canvas {
+                                Layout.preferredWidth: 20
+                                Layout.preferredHeight: 20
+                                property color colorTrazo: temaApp.acentoVisible
+                                onColorTrazoChanged: requestPaint()
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.reset();
+                                    ctx.strokeStyle = colorTrazo;
+                                    ctx.lineWidth = 1.7;
+                                    ctx.lineCap = "round";
+                                    ctx.lineJoin = "round";
+                                    // Símbolo de código </>
+                                    ctx.beginPath();
+                                    ctx.moveTo(7, 6);
+                                    ctx.lineTo(3, 10);
+                                    ctx.lineTo(7, 14);
+                                    ctx.moveTo(13, 6);
+                                    ctx.lineTo(17, 10);
+                                    ctx.lineTo(13, 14);
+                                    ctx.moveTo(11, 4.5);
+                                    ctx.lineTo(9, 15.5);
+                                    ctx.stroke();
+                                }
+                            }
+
+                            Text {
+                                text: "Ver repositorio del proyecto en GitHub"
+                                color: temaApp.textoPrincipal
+                                font.pixelSize: 12
+                                font.bold: true
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: btnAbrirGithub.scale = 0.97
+                            onReleased: btnAbrirGithub.scale = 1.0
+                            onCanceled: btnAbrirGithub.scale = 1.0
+                            onClicked: Qt.openUrlExternally("https://github.com/Emmanuel726/AppDAE")
+                        }
+                        Behavior on scale { NumberAnimation { duration: 100 } }
                     }
 
                     Rectangle {

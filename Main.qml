@@ -1031,6 +1031,8 @@ ApplicationWindow {
                     rootDashboard.servicioActivo = "calendario";
                 } else if (tipo === "HOR") {
                     rootDashboard.tabActual = 3;
+                } else if (tipo === "RET") {
+                    rootDashboard.servicioActivo = "retiro";
                 }
             }
 
@@ -1063,6 +1065,10 @@ ApplicationWindow {
                 }
                 if (rootDashboard.tabActual === 0 && rootDashboard.servicioActivo === "carnet" && vistaCarnet.modalQrAbierto) {
                     vistaCarnet.modalQrAbierto = false
+                    return true
+                }
+                if (rootDashboard.tabActual === 0 && rootDashboard.servicioActivo === "retiro" && vistaRetiro.pasoActual === 1) {
+                    vistaRetiro.pasoActual = 0
                     return true
                 }
                 if (rootDashboard.servicioActivo !== "") {
@@ -1970,6 +1976,8 @@ ApplicationWindow {
                                                         rootDashboard.servicioActivo = "cambio_escuela"
                                                     } else if (modelData.tipo === "inscripcion") {
                                                         rootDashboard.servicioActivo = "inscripcion"
+                                                    } else if (modelData.tipo === "retiro") {
+                                                        rootDashboard.servicioActivo = "retiro"
                                                     } else if (modelData.tipo === "mapa") {
                                                         rootDashboard.servicioActivo = "mapa"
                                                     } else if (modelData.tipo === "salones") {
@@ -2376,6 +2384,15 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.topMargin: ventanaPrincipal.insetSuperior
                     visible: rootDashboard.tabActual === 0 && rootDashboard.servicioActivo === "inscripcion"
+                    onVolver: rootDashboard.servicioActivo = ""
+                }
+
+                // SUB-VISTA DE SERVICIO DAE: RETIRO DE ASIGNATURAS
+                RetiroAsignaturaView {
+                    id: vistaRetiro
+                    anchors.fill: parent
+                    anchors.topMargin: ventanaPrincipal.insetSuperior
+                    visible: rootDashboard.tabActual === 0 && rootDashboard.servicioActivo === "retiro"
                     onVolver: rootDashboard.servicioActivo = ""
                 }
 

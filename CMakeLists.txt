@@ -32,6 +32,7 @@ qt_add_qml_module(appAppDAE
         servicios/ReglamentoEvaluacionView.qml
         servicios/CambioEscuelaView.qml
         servicios/InscripcionView.qml
+        servicios/RetiroAsignaturaView.qml
         servicios/MapaFacultadView.qml
         servicios/SalonesDisponiblesView.qml
         servicios/RecordatoriosView.qml
