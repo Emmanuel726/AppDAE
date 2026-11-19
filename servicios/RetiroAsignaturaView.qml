@@ -331,7 +331,7 @@ Item {
                                 Layout.preferredWidth: 56
                                 text: "CÓDIGO"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 9.5
+                                font.pixelSize: 9
                                 font.bold: true
                             }
 
@@ -340,7 +340,7 @@ Item {
                                 Layout.minimumWidth: 0
                                 text: "ASIGNATURA"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 9.5
+                                font.pixelSize: 9
                                 font.bold: true
                             }
 
@@ -348,7 +348,7 @@ Item {
                                 Layout.preferredWidth: 48
                                 text: "SECCIÓN"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 9.5
+                                font.pixelSize: 9
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                             }
@@ -357,7 +357,7 @@ Item {
                                 Layout.preferredWidth: 48
                                 text: "RETIRAR"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 9.5
+                                font.pixelSize: 9
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                             }
@@ -394,7 +394,7 @@ Item {
                                     color: modelData.checked
                                            ? (temaApp.esClaro ? "#b91c1c" : "#fca5a5")
                                            : (temaApp.esClaro ? temaApp.primario : temaApp.claro)
-                                    font.pixelSize: 10.5
+                                    font.pixelSize: 10
                                     font.bold: true
                                 }
 
@@ -405,7 +405,7 @@ Item {
                                     Layout.minimumWidth: 0
                                     text: modelData.nombre
                                     color: temaApp.textoPrincipal
-                                    font.pixelSize: 10.5
+                                    font.pixelSize: 10
                                     font.bold: modelData.checked
                                     lineHeight: 1.05
                                     wrapMode: Text.Wrap
@@ -416,7 +416,7 @@ Item {
                                     Layout.preferredWidth: 48
                                     text: modelData.sec
                                     color: temaApp.textoPrincipal
-                                    font.pixelSize: 11.5
+                                    font.pixelSize: 11
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
                                 }
