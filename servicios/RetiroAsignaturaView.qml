@@ -323,40 +323,41 @@ Item {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            spacing: 6
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 5
 
                             Text {
-                                Layout.preferredWidth: 62
+                                Layout.preferredWidth: 56
                                 text: "CÓDIGO"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 10
+                                font.pixelSize: 9.5
                                 font.bold: true
                             }
 
                             Text {
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "ASIGNATURA"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 10
+                                font.pixelSize: 9.5
                                 font.bold: true
                             }
 
                             Text {
-                                Layout.preferredWidth: 54
+                                Layout.preferredWidth: 48
                                 text: "SECCIÓN"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 10
+                                font.pixelSize: 9.5
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                             }
 
                             Text {
-                                Layout.preferredWidth: 52
+                                Layout.preferredWidth: 48
                                 text: "RETIRAR"
                                 color: temaApp.textoPrincipal
-                                font.pixelSize: 10
+                                font.pixelSize: 9.5
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                             }
@@ -383,17 +384,17 @@ Item {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 10
-                                anchors.rightMargin: 10
-                                spacing: 6
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                spacing: 5
 
                                 Text {
-                                    Layout.preferredWidth: 62
+                                    Layout.preferredWidth: 56
                                     text: modelData.codigo
                                     color: modelData.checked
                                            ? (temaApp.esClaro ? "#b91c1c" : "#fca5a5")
                                            : (temaApp.esClaro ? temaApp.primario : temaApp.claro)
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10.5
                                     font.bold: true
                                 }
 
@@ -401,24 +402,27 @@ Item {
                                     id: txtNomAsig
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 0
+                                    Layout.minimumWidth: 0
                                     text: modelData.nombre
                                     color: temaApp.textoPrincipal
-                                    font.pixelSize: 11
+                                    font.pixelSize: 10.5
                                     font.bold: modelData.checked
-                                    wrapMode: Text.WordWrap
+                                    lineHeight: 1.05
+                                    wrapMode: Text.Wrap
+                                    clip: true
                                 }
 
                                 Text {
-                                    Layout.preferredWidth: 54
+                                    Layout.preferredWidth: 48
                                     text: modelData.sec
                                     color: temaApp.textoPrincipal
-                                    font.pixelSize: 12
+                                    font.pixelSize: 11.5
                                     font.bold: true
                                     horizontalAlignment: Text.AlignHCenter
                                 }
 
                                 Item {
-                                    Layout.preferredWidth: 52
+                                    Layout.preferredWidth: 48
                                     Layout.preferredHeight: 32
 
                                     Rectangle {
