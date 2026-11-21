@@ -2262,6 +2262,11 @@ void DaeClient::parsearHorarioAsignadoHtml(const QString &html)
             while (extra.startsWith('-') || extra.startsWith(QChar(0x2013))) {
                 extra = extra.mid(1).trimmed();
             }
+            bool esRetiro = extra.contains("RETIRO", Qt::CaseInsensitive) || extra.contains("RETIRAD", Qt::CaseInsensitive);
+            if (esRetiro) {
+                m_codigosRetiradosConfirmados.insert(codigo);
+                continue;
+            }
             bool esAdicion = extra.contains("ADICION", Qt::CaseInsensitive) || extra.contains("ADICIÓN", Qt::CaseInsensitive);
 
             if (codigo.endsWith("L", Qt::CaseInsensitive) && !nombre.contains("LAB", Qt::CaseInsensitive)) {
@@ -2334,6 +2339,23 @@ void DaeClient::parsearHorarioAsignadoHtml(const QString &html)
         }
         if (m_materiasSinTranscribir.isEmpty()) {
             m_materiasSinTranscribir = listaEnCurso;
+        } else if (!m_codigosRetiradosConfirmados.isEmpty()) {
+            QVariantList filtradas;
+            for (const QVariant &v : m_materiasSinTranscribir) {
+                if (!m_codigosRetiradosConfirmados.contains(v.toMap()["codigo"].toString().trimmed().toUpper())) {
+                    filtradas.append(v);
+                }
+            }
+            m_materiasSinTranscribir = filtradas;
+        }
+        if (!m_codigosRetiradosConfirmados.isEmpty() && !m_materiasPeriodoActualRaw.isEmpty()) {
+            QVariantList filtradasPer;
+            for (const QVariant &v : m_materiasPeriodoActualRaw) {
+                if (!m_codigosRetiradosConfirmados.contains(v.toMap()["codigo"].toString().trimmed().toUpper())) {
+                    filtradasPer.append(v);
+                }
+            }
+            m_materiasPeriodoActualRaw = filtradasPer;
         }
         m_ucInscritas = sumaUcInscritas;
 
