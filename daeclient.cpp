@@ -3811,26 +3811,6 @@ void DaeClient::descargarCarnetPdf(const QString &rutaFotoPerfil)
                Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
                "Para verificar la validez de este carnet ingrese a:\nhttps://carnet.uc.edu.ve");
 
-    // Firma del Secretario debajo del QR del reverso
-    const int sigX = qrRevX + 35;
-    const int sigY = y + cardH - 205;
-    QPainterPath firma;
-    firma.moveTo(sigX + 18, sigY + 60);
-    firma.cubicTo(sigX + 48, sigY + 10, sigX + 112, sigY + 12, sigX + 92, sigY + 54);
-    firma.cubicTo(sigX + 78, sigY + 78, sigX + 148, sigY + 22, sigX + 212, sigY + 38);
-    firma.moveTo(sigX + 52, sigY + 48);
-    firma.lineTo(sigX + 178, sigY + 48);
-    p.setPen(QPen(QColor("#1e293b"), 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    p.setBrush(Qt::NoBrush);
-    p.drawPath(firma);
-
-    QFont fontSec("Helvetica");
-    fontSec.setPointSizeF(7.5);
-    p.setFont(fontSec);
-    p.setPen(QColor("#111827"));
-    p.drawText(QRect(qrRevX + 12, y + cardH - 108, qrRevSize - 12, 34), Qt::AlignLeft | Qt::AlignVCenter, "PROF. PABLO AURE");
-    p.drawText(QRect(qrRevX + 12, y + cardH - 72, qrRevSize - 12, 34), Qt::AlignLeft | Qt::AlignVCenter, "SECRETARIO");
-
     y += cardH + 60;
 
     // 5. Instrucciones inferiores (5 viñetas)

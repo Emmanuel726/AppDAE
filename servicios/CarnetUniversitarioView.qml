@@ -12,6 +12,7 @@ Item {
     property string urlFotoEstudiante: ""
     property bool descargaPdfExitosa: false
     property bool modalQrAbierto: false
+    property bool modalAvisoNoOficialAbierto: false
     property string tituloQrModal: "QR de Identificación Estudiantil"
     property int semillaQrModal: 1
 
@@ -554,48 +555,6 @@ Item {
                                     }
                                 }
                             }
-
-                            // Firma vectorial del Secretario (Prof. Pablo Aure)
-                            Column {
-                                Layout.alignment: Qt.AlignHCenter
-                                spacing: 0
-
-                                Canvas {
-                                    width: 70; height: 18
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    property color colorFirma: temaApp.textoPrincipal
-                                    onColorFirmaChanged: requestPaint()
-                                    onPaint: {
-                                        var ctx = getContext("2d");
-                                        ctx.reset();
-                                        ctx.strokeStyle = colorFirma;
-                                        ctx.lineWidth = 1.3;
-                                        ctx.lineCap = "round";
-                                        ctx.beginPath();
-                                        ctx.moveTo(12, 14);
-                                        ctx.bezierCurveTo(18, 2, 32, 3, 28, 12);
-                                        ctx.bezierCurveTo(25, 16, 42, 6, 56, 8);
-                                        ctx.moveTo(22, 11);
-                                        ctx.lineTo(48, 11);
-                                        ctx.stroke();
-                                    }
-                                }
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "PROF. PABLO AURE"
-                                    color: temaApp.textoPrincipal
-                                    font.pixelSize: 8
-                                    font.bold: true
-                                }
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "SECRETARIO"
-                                    color: temaApp.textoMuted
-                                    font.pixelSize: 7
-                                    font.bold: true
-                                }
-                            }
                         }
                     }
                 }
@@ -749,6 +708,40 @@ Item {
                         }
                     }
 
+                    // Aviso visible: reconstrucción no oficial
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: colAvisoCarnet.implicitHeight + 20
+                        radius: 14
+                        color: temaApp.esClaro ? "#fef3c7" : "#22f59e0b"
+                        border.color: temaApp.esClaro ? "#f59e0b" : "#60fbbf24"
+                        border.width: 1
+
+                        ColumnLayout {
+                            id: colAvisoCarnet
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 4
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "AVISO IMPORTANTE • MODELO NO OFICIAL"
+                                color: temaApp.esClaro ? "#92400e" : "#fde68a"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Este carnet no es oficial; es únicamente una reconstrucción del modelo oficial. Para su validez, debe descargarse directamente desde la página https://carnet.uc.edu.ve"
+                                color: temaApp.esClaro ? "#78350f" : "#fef3c7"
+                                font.pixelSize: 10
+                                lineHeight: 1.15
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
                     // Botón principal: Descargar PDF del Carnet Electrónico
                     Rectangle {
                         id: btnDescargarCarnetPdf
@@ -799,10 +792,7 @@ Item {
                             onPressed: btnDescargarCarnetPdf.scale = 0.96
                             onReleased: btnDescargarCarnetPdf.scale = 1.0
                             onClicked: {
-                                daeClient.descargarCarnetPdf(rootCarnet.urlFotoEstudiante)
-                                rootCarnet.descargaPdfExitosa = true
-                                daeClient.registrarSolicitudReciente("CAR", "Carnet Universitario",
-                                                                       "Carnet vigente • V-" + daeClient.cedulaEstudiante, "Descargado")
+                                rootCarnet.modalAvisoNoOficialAbierto = true
                             }
                         }
                         Behavior on scale { NumberAnimation { duration: 100 } }
@@ -1038,6 +1028,140 @@ Item {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: rootCarnet.modalQrAbierto = false
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // MODAL DE AVISO ANTES DE DESCARGAR PDF DEL CARNET (NO OFICIAL)
+    // =========================================================================
+    Item {
+        anchors.fill: parent
+        visible: rootCarnet.modalAvisoNoOficialAbierto
+        z: 100
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#cc040812"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: rootCarnet.modalAvisoNoOficialAbierto = false
+            }
+        }
+
+        Rectangle {
+            width: Math.min(parent.width - 40, 350)
+            implicitHeight: colModalAvisoNoOficial.implicitHeight + 36
+            radius: 24
+            anchors.centerIn: parent
+            color: temaApp.panel
+            border.color: "#f59e0b"
+            border.width: 1.5
+
+            MouseArea { anchors.fill: parent }
+
+            ColumnLayout {
+                id: colModalAvisoNoOficial
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 12
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Aviso Importante"
+                    color: temaApp.textoPrincipal
+                    font.pixelSize: 16
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Este carnet no es oficial; es únicamente una reconstrucción del modelo oficial.\n\nPara su validez, debe descargarse directamente desde la página:\nhttps://carnet.uc.edu.ve"
+                    color: temaApp.textoSecundario
+                    font.pixelSize: 12
+                    lineHeight: 1.2
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 42
+                    radius: 14
+                    color: temaApp.panelAlt
+                    border.color: temaApp.acento
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Ir a https://carnet.uc.edu.ve"
+                        color: temaApp.esClaro ? temaApp.primario : temaApp.claro
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Qt.openUrlExternally("https://carnet.uc.edu.ve")
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 42
+                        radius: 14
+                        color: temaApp.panelAlt
+                        border.color: temaApp.bordeAlt
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Cancelar"
+                            color: temaApp.textoPrincipal
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: rootCarnet.modalAvisoNoOficialAbierto = false
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 42
+                        radius: 14
+                        color: temaApp.primario
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Descargar PDF"
+                            color: "white"
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                rootCarnet.modalAvisoNoOficialAbierto = false
+                                daeClient.descargarCarnetPdf(rootCarnet.urlFotoEstudiante)
+                                rootCarnet.descargaPdfExitosa = true
+                                daeClient.registrarSolicitudReciente("CAR", "Carnet Universitario",
+                                                                       "Carnet vigente • V-" + daeClient.cedulaEstudiante, "Descargado")
+                            }
+                        }
                     }
                 }
             }
